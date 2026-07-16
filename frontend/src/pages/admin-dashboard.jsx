@@ -17,7 +17,7 @@ const [newInstructor, setNewInstructor] = useState({
   email: "",
   password: "",
 });
-
+const [accountType, setAccountType] = useState("instructor");
 const totalUsers = users.length;
 const totalStudents = users.filter(
   (u) => u.role === "user"
@@ -68,7 +68,11 @@ const averageCoursePrice =
 
   const handleCreateInstructor = async (e) => {
     e.preventDefault();
-    await apiClient.createInstructor(newInstructor);
+    if (accountType === "instructor") {
+  await apiClient.createInstructor(newInstructor);
+} else {
+  await apiClient.createStudent(newInstructor);
+}
     setNewInstructor({ name: '', email: '', password: '' });
     fetchUsers();
   };
@@ -220,13 +224,33 @@ const filteredCourses = courses.filter((course) =>
       </h2>
 
       <p className="text-blue-100 mt-1">
-        Add new instructors who can publish and manage courses.
+        {accountType === "instructor"
+  ? "Add new instructors who can publish and manage courses."
+  : "Create a student account with the ADS role."}
       </p>
 
     </div>
 
     <div className="p-6">
+<div className="mb-6">
+  <label className="block text-sm font-medium mb-2">
+    Account Type
+  </label>
 
+  <select
+    value={accountType}
+    onChange={(e) => setAccountType(e.target.value)}
+    className="w-full lg:w-72 px-4 py-3 border rounded-xl focus:ring-2 focus:ring-primary-blue outline-none"
+  >
+    <option value="instructor">
+      Instructor
+    </option>
+
+    <option value="user">
+      ADS Student
+    </option>
+  </select>
+</div>
       <form
         onSubmit={handleCreateInstructor}
         className="grid lg:grid-cols-4 gap-5"
@@ -234,7 +258,11 @@ const filteredCourses = courses.filter((course) =>
 
         <input
           type="text"
-          placeholder="Instructor Name"
+          placeholder={
+  accountType === "instructor"
+    ? "Instructor Name"
+    : "Student Name"
+}
           value={newInstructor.name}
           onChange={(e) =>
             setNewInstructor({
@@ -278,7 +306,9 @@ const filteredCourses = courses.filter((course) =>
           type="submit"
           className="rounded-xl"
         >
-          Create Instructor
+         {accountType === "instructor"
+  ? "Create Instructor"
+  : "Create ADS Student"}
         </Button>
 
       </form>
@@ -384,7 +414,7 @@ const filteredCourses = courses.filter((course) =>
                       : "bg-green-100 text-green-700"
                   }`}
                 >
-                  {u.role}
+                  {u.role === "user" ? "ADS Student" : u.role}
                 </span>
 
               </td>
@@ -685,18 +715,14 @@ const filteredCourses = courses.filter((course) =>
 
     <div className="mt-8 space-y-3">
 
-      <button
-        onClick={() =>
-          document
-            .getElementById("create-instructor")
-            ?.scrollIntoView({
-              behavior: "smooth",
-            })
-        }
-        className="w-full bg-white/20 hover:bg-white/30 rounded-xl py-3 transition"
-      >
-        ➕ Create Instructor
-      </button>
+<Button
+  type="submit"
+  className="rounded-xl"
+>
+  {accountType === "instructor"
+    ? "Create Instructor"
+    : "Create Student"}
+</Button>
 
       <button
         onClick={() =>

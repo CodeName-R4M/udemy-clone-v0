@@ -137,6 +137,13 @@ async getProfileStats() {
   return this.request("/users/me/stats");
 }
 
+async createStudent(data) {
+  return this.request("/users/ads-student", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
   async getCourse(id) {
     return this.request(`/courses/${id}`);
   }

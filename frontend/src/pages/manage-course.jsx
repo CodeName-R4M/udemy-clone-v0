@@ -83,9 +83,6 @@ navigate(
   const { refetchUser, currentUser } = useAuth();
   const [course, setCourse] = useState(null);
   const [lessons, setLessons] = useState([]);
-  const [courseQuestions, setCourseQuestions] = useState([]);
-  const [replyDrafts, setReplyDrafts] = useState({});
-  const [expandedLessons, setExpandedLessons] = useState({});
 const [quizExists, setQuizExists] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -121,10 +118,7 @@ const [quizExists, setQuizExists] = useState(false);
       });
 const lessons = await apiClient.getLessons(id);
 setLessons(lessons);
-const courseQuestions =
-    await apiClient.getCourseQuestions(id).catch(() => []);
 
-setCourseQuestions(courseQuestions);
 let quizData = null;
 
 try {
@@ -249,27 +243,6 @@ setNewLesson({
 
     fetchCourse();
   };
-
-  const handleSubmitReply = async (questionId) => {
-    const answer = replyDrafts[questionId]?.trim();
-
-    if (!answer) {
-      return;
-    }
-
-    const question = courseQuestions.find(q => q.id === questionId);
-    const hasExistingAnswer = !!question?.answer;
-
-    if (hasExistingAnswer) {
-      await apiClient.updateLessonAnswer(questionId, answer);
-    } else {
-      await apiClient.answerLessonQuestion(questionId, answer);
-    }
-    
-    setReplyDrafts((prev) => ({ ...prev, [questionId]: '' }));
-    fetchCourse();
-  };
-
   const handleLessonDragStart = (lessonId) => {
     setDraggedLessonId(lessonId);
   };
@@ -722,145 +695,6 @@ setNewLesson({
             </Button>
           </div>
         </form>
-      </div>
-
-      <div className="mt-8 sm:mt-12 bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
-        <div className="px-5 sm:px-8 py-4 sm:py-6 border-b bg-gray-50">
-          <h2 className="flex items-center gap-2 text-xl sm:text-2xl font-bold text-gray-800">
-            <MessageSquare size={24} />
-            Student Q&A
-          </h2>
-          <p className="text-sm text-gray-500 mt-1">
-            Questions asked by enrolled students, grouped by lesson.
-          </p>
-        </div>
-
-        <div className="p-5 sm:p-8 space-y-6">
-          {courseQuestions.length === 0 ? (
-            <div className="rounded-xl border border-dashed p-5 text-sm text-gray-500 text-center">
-              No student questions have been posted for this course yet.
-            </div>
-          ) : (
-            // Group questions by lesson
-            (() => {
-              const questionsByLesson = {};
-              lessons.forEach(lesson => {
-                questionsByLesson[lesson.id] = {
-                  lesson,
-                  questions: []
-                };
-              });
-              courseQuestions.forEach(question => {
-                if (questionsByLesson[question.lessonId]) {
-                  questionsByLesson[question.lessonId].questions.push(question);
-                }
-              });
-              return Object.values(questionsByLesson).filter(group => group.questions.length > 0);
-            })().map(({ lesson, questions }) => (
-              <div
-  key={lesson.id}
-  className="border rounded-xl overflow-hidden"
->
-<div
-  className="flex items-center justify-between px-5 py-4 bg-gray-50 cursor-pointer"
-  onClick={() =>
-    setExpandedLessons((prev) => ({
-      ...prev,
-      [lesson.id]: !prev[lesson.id],
-    }))
-  }
->
-  <div>
-    <h3 className="font-semibold text-lg text-gray-900">
-      {lesson.title}
-    </h3>
-
-    <p className="text-sm text-gray-500">
-      {questions.length} Question{questions.length !== 1 ? "s" : ""}
-    </p>
-  </div>
-
-  <div className="flex items-center gap-3">
-
-    <Button
-      variant="outline"
-      onClick={(e) => {
-        e.stopPropagation();
-        navigate(`/course-learning/${id}`, {
-          state: { lessonId: lesson.id },
-        });
-      }}
-    >
-      Open Lesson
-    </Button>
-
-    <span className="text-xl">
-      {expandedLessons[lesson.id] ? "▲" : "▼"}
-    </span>
-
-  </div>
-</div>
-                
-                {expandedLessons[lesson.id] && (
-
-<div className="p-5 space-y-4">
-                  {questions.map(question => (
-                    <div key={question.id} className="border-l-4 border-red-500 pl-4">
-                      <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
-                        <p className="font-medium text-gray-900">
-                          Q: {question.question}
-                        </p>
-                        {question.answer ? (
-                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-green-100 text-green-700 text-xs">
-                            <CircleCheckBig size={14} />
-                            Answered
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 text-xs">
-                            <CircleAlert size={14} />
-                            Pending
-                          </span>
-                        )}
-                      </div>
-                      
-                      <p className="text-xs text-gray-500 mb-2">
-                        Asked by: {question.userName}
-                      </p>
-                      
-                      {question.answer && (
-                        <p className="text-sm text-gray-700 mb-3">
-                          <strong>A:</strong> {question.answer}
-                        </p>
-                      )}
-                      
-                      <div className="flex gap-2">
-                        <textarea
-                          rows={2}
-                          value={replyDrafts[question.id] || ''}
-                          onChange={(e) =>
-                            setReplyDrafts((prev) => ({
-                              ...prev,
-                              [question.id]: e.target.value,
-                            }))
-                          }
-                          placeholder="Write an instructor reply..."
-                          className="flex-1 rounded-xl border border-gray-300 px-4 py-3 text-sm focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100 outline-none"
-                        />
-                        <Button
-                          onClick={() => handleSubmitReply(question.id)}
-                        >
-                          <Reply size={16} className="mr-2" />
-                          {question.answer ? "Update" : "Reply"}
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                )}
-              </div>
-            ))
-          )}
-        </div>
       </div>
 
       {/* Curriculum List */}
