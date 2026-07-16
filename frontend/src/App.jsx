@@ -19,6 +19,7 @@ import { CartProvider } from "./contexts/Cartcontext";
 import Checkout from "./pages/checkout";
 import CourseLearning from "./pages/course-learning";
 import Certificate from "./pages/certificate";
+import Profile from "./pages/profile";
 
 
 
@@ -39,6 +40,7 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/course-learning/:courseId" element={<CourseLearning />} />
+              <Route path="/profile" element={<Profile />} />
               <Route path="/my-learning" element={<MyLearning />} />
               <Route path="/certificate/:courseId" element={<Certificate />} />
               <Route path="/admin" element={<AdminDashboard />} />

@@ -13,8 +13,6 @@ async request(endpoint, options = {}) {
   const url = `${this.baseURL}${endpoint}`;
   const token = localStorage.getItem("token");
 
-  console.log("TOKEN:", token);
-
   const headers = {
     "Content-Type": "application/json",
     ...options.headers,
@@ -24,9 +22,7 @@ async request(endpoint, options = {}) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  console.log("HEADERS:", headers);
-
-  const debug = true;
+  const debug = false;
 
   if (debug) {
     console.group(`🌐 ${options.method || "GET"} ${endpoint}`);
@@ -122,6 +118,25 @@ async request(endpoint, options = {}) {
 async getCurrentUser() {
   return this.request("/auth/me");
 }
+
+async updateProfile(data) {
+  return this.request("/users/me", {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+async changePassword(data) {
+  return this.request("/users/me/password", {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+async getProfileStats() {
+  return this.request("/users/me/stats");
+}
+
   async getCourse(id) {
     return this.request(`/courses/${id}`);
   }
@@ -200,11 +215,11 @@ async getLessons(courseId) {
 }
 
 async getLessonQuestions(lessonId) {
-  // return this.request(`/lesson/${lessonId}/questions`);
-  return [];
+  return this.request(`/lesson/${lessonId}/questions`);
+  // return [];
 }
 async getCourseQuestions(courseId) {
-  return [];
+  return this.request(`/lesson/course/${courseId}/questions`);
 }
 async startQuiz(courseId) {
   return this.request(`/lesson/course/${courseId}/quiz/start`, {
@@ -238,8 +253,28 @@ async createLessonQuestion(lessonId, data) {
 
 async answerLessonQuestion(questionId, answer) {
   return this.request(`/lesson/questions/${questionId}/answer`, {
+    method: 'POST',
+    body: JSON.stringify({ answer }),
+  });
+}
+
+async updateLessonQuestion(questionId, question) {
+  return this.request(`/lesson/questions/${questionId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ question }),
+  });
+}
+
+async updateLessonAnswer(questionId, answer) {
+  return this.request(`/lesson/questions/${questionId}/answer`, {
     method: 'PATCH',
     body: JSON.stringify({ answer }),
+  });
+}
+
+async deleteLessonQuestion(questionId) {
+  return this.request(`/lesson/questions/${questionId}`, {
+    method: "DELETE",
   });
 }
 

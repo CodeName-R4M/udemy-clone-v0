@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { apiClient } from "../client";
 import Button from "../components/button";
 import YouTube from "react-youtube";
@@ -16,6 +16,7 @@ const playerRef = useRef(null);
 const [questionsEnabled, setQuestionsEnabled] = useState(true);
   const { courseId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 const [videoUrl, setVideoUrl] = useState(null);
 const [quiz, setQuiz] = useState(null);
 const [quizQuestions, setQuizQuestions] = useState([]);
@@ -26,13 +27,23 @@ const [quizResult, setQuizResult] = useState(null);
 const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 const [submittingQuiz, setSubmittingQuiz] = useState(false);
 const [quizError, setQuizError] = useState("");
+const [openQuestionMenu, setOpenQuestionMenu] = useState(null);
+const [replyingTo, setReplyingTo] = useState(null);
+const [replyText, setReplyText] = useState("");
+const [savingReply, setSavingReply] = useState(false);
+const [editingQuestion, setEditingQuestion] = useState(null);
+const [editedQuestion, setEditedQuestion] = useState("");
+const [savingQuestion, setSavingQuestion] = useState(false);
+const [courseQuestions, setCourseQuestions] = useState([]);
+const [expandedLesson, setExpandedLesson] = useState(null);
 
   const loadCourseData = async () => {
     try {
-      const [courseData, enrolledCourses] = await Promise.all([
-        apiClient.getCourse(courseId),
-        apiClient.getMyEnrolledCourses().catch(() => []),
-      ]);
+const [courseData, enrolledCourses, user] = await Promise.all([
+  apiClient.getCourse(courseId),
+  apiClient.getMyEnrolledCourses().catch(() => []),
+  apiClient.getCurrentUser(),
+]);
 
       const isEnrolled = Boolean(
         courseData?.isEnrolled ||
@@ -44,18 +55,29 @@ const [quizError, setQuizError] = useState("");
         return;
       }
 
-      const [lessonsData, completedData] = await Promise.all([
-        apiClient.getLessons(courseId),
-        apiClient.getCompletedLessons(courseId),
-      ]);
+ const [lessonsData, completedData, courseQuestionsData] =
+  await Promise.all([
+    apiClient.getLessons(courseId),
+    apiClient.getCompletedLessons(courseId),
+    apiClient.getCourseQuestions(courseId).catch(() => []),
+  ]);
 
       setCourse(courseData);
+      setCourseQuestions(courseQuestionsData);
+      setCurrentUser(user);
       setLessons(lessonsData);
       setCompletedLessonIds(completedData);
-      setCurrentLesson(lessonsData[0] || null);
 
-      if (lessonsData[0]) {
-        const lessonQuestions = await apiClient.getLessonQuestions(lessonsData[0].id).catch(() => []);
+      // Find the initial lesson: use the one from location state if available, otherwise first lesson
+      const initialLessonId = location.state?.lessonId;
+      const initialLesson = initialLessonId 
+        ? lessonsData.find(l => l.id === initialLessonId) 
+        : lessonsData[0];
+
+      setCurrentLesson(initialLesson || null);
+
+      if (initialLesson) {
+        const lessonQuestions = await apiClient.getLessonQuestions(initialLesson.id).catch(() => []);
         setQuestions(lessonQuestions);
       }
     } catch (err) {
@@ -101,6 +123,7 @@ setAnswers({});
   const [questionText, setQuestionText] = useState('');
   const [questionError, setQuestionError] = useState('');
   const [isSubmittingQuestion, setIsSubmittingQuestion] = useState(false);
+const [currentUser, setCurrentUser] = useState(null);
 
 const handleTimeUpdate = (e) => {
   const video = e.target;
@@ -157,6 +180,7 @@ const currentIndex = lessons.findIndex(
   (lesson) => lesson.id === currentLesson?.id
 );
 
+
 const handleQuestionSubmit = async (e) => {
   e.preventDefault();
 
@@ -180,6 +204,90 @@ const handleQuestionSubmit = async (e) => {
     setQuestionError(error?.message || 'Unable to submit your question right now.');
   } finally {
     setIsSubmittingQuestion(false);
+  }
+};
+
+const handleReplySave = async (questionId) => {
+  if (!replyText.trim()) return;
+
+  const question = questions.find(q => q.id === questionId);
+  const hasExistingAnswer = !!question?.answer;
+
+  try {
+    setSavingReply(true);
+
+    if (hasExistingAnswer) {
+      await apiClient.updateLessonAnswer(
+        questionId,
+        replyText.trim(),
+      );
+    } else {
+      await apiClient.answerLessonQuestion(
+        questionId,
+        replyText.trim(),
+      );
+    }
+
+    const updatedQuestions =
+      await apiClient.getLessonQuestions(
+        currentLesson.id,
+      );
+
+    setQuestions(updatedQuestions);
+console.log(updatedQuestions);
+    setReplyingTo(null);
+    setReplyText("");
+  } catch (err) {
+    console.error(err);
+    alert("Unable to save reply.");
+  } finally {
+    setSavingReply(false);
+  }
+};
+
+const handleQuestionEdit = async (questionId) => {
+  if (!editedQuestion.trim()) return;
+
+  try {
+    setSavingQuestion(true);
+
+    await apiClient.updateLessonQuestion(
+      questionId,
+      editedQuestion.trim(),
+    );
+
+    const updatedQuestions =
+      await apiClient.getLessonQuestions(
+        currentLesson.id,
+      );
+
+    setQuestions(updatedQuestions);
+
+    setEditingQuestion(null);
+    setEditedQuestion("");
+  } finally {
+    setSavingQuestion(false);
+  }
+};
+
+const handleDeleteQuestion = async (questionId) => {
+  if (!window.confirm("Delete this question?")) {
+    return;
+  }
+
+  try {
+    await apiClient.deleteLessonQuestion(questionId);
+
+    const updatedQuestions =
+      await apiClient.getLessonQuestions(
+        currentLesson.id,
+      );
+
+    setQuestions(updatedQuestions);
+    setOpenQuestionMenu(null);
+  } catch (err) {
+    console.error(err);
+    alert("Unable to delete question.");
   }
 };
 
@@ -303,8 +411,15 @@ const review =
       </div>
     );
   }
-
-
+const getLessonQuestionCount = (lessonId) =>
+  
+  courseQuestions.filter(
+    (q) => q.lessonId === lessonId
+  ).length;
+const getQuestionsForLesson = (lessonId) =>
+  courseQuestions.filter(
+    (q) => q.lessonId === lessonId
+  );
   return (
     <div className="min-h-screen bg-gray-100">
 
@@ -491,10 +606,10 @@ onClick={async () => {
 
     <div className="space-y-8">
 
-        <div
-          key={question.id}
-          className="border rounded-xl p-6"
-        >
+<div
+key={question.id}
+className="rounded-xl border bg-white shadow-sm p-5"
+>
 
           <h3 className="font-semibold text-lg mb-4">
             {currentQuestionIndex + 1}. {question.question}
@@ -740,9 +855,250 @@ onClick={async () => {
               </div>
 
               <div className="mt-10 border-t pt-8">
-                <h3 className="text-xl font-bold text-gray-900">Lesson Q&A</h3>
+<div className="flex items-center justify-between">
+  <h3 className="text-xl font-bold text-gray-900">
+    Lesson Q&A
+  </h3>
+
+  <span className="rounded-full bg-red-100 text-red-700 px-3 py-1 text-sm font-medium">
+    {questions.length} Questions
+  </span>
+</div>
                 <p className="text-sm text-gray-500 mt-1">Ask a question about this lesson and the instructor can answer it here.</p>
 
+
+
+                <div className="mt-6 space-y-4">
+                                    {questionError && <p className="text-sm text-red-600">{questionError}</p>}
+                  {questions.length === 0 ? (
+                    <div className="rounded-xl border border-dashed p-5 text-sm text-gray-500">
+No questions have been asked for this lesson yet.
+
+Be the first to ask one!
+                    </div>
+                  ) : (
+                    questions.map((question) => {
+  const isOwner =
+    currentUser?.id === question.userId;
+
+  const isInstructor =
+    currentUser?.role === "admin" ||
+    currentUser?.id === course.instructorId;
+
+  return (
+<div key={question.id} className="rounded-xl border bg-gray-50 p-4">
+
+<div className="flex items-start justify-between mb-3">
+
+<div>
+  <p className="font-semibold text-gray-900">
+    {question.userName}
+  </p>
+
+  <p className="text-xs text-gray-500">
+    Student
+  </p>
+</div>
+
+<div className="flex items-center gap-2">
+
+  <span className="bg-red-100 text-red-600 px-2 py-1 rounded text-xs font-semibold">
+    QUESTION
+  </span>
+
+{(isOwner || isInstructor) && (
+
+<div className="relative">
+<button
+  type="button"
+  onClick={() =>
+    setOpenQuestionMenu(
+      openQuestionMenu === question.id
+        ? null
+        : question.id
+    )
+  }
+  className="w-8 h-8 rounded-full hover:bg-gray-100 text-gray-500 text-lg"
+>
+  ⋮
+</button>
+
+{openQuestionMenu === question.id && (
+
+<div className="absolute right-0 mt-2 w-48 rounded-lg border bg-white shadow-lg z-20">
+
+{isInstructor ? (
+  <>
+<button
+  className="w-full px-4 py-2 text-left hover:bg-gray-100"
+  onClick={() => {
+    setReplyingTo(question.id);
+    setReplyText(question.answer ?? "");
+    setOpenQuestionMenu(null);
+  }}
+>
+  {question.answer ? "Edit Reply" : "Reply"}
+</button>
+<button
+  className="w-full px-4 py-2 text-left hover:bg-gray-100"
+  onClick={() => {
+    setEditingQuestion(question.id);
+    setEditedQuestion(question.question);
+    setOpenQuestionMenu(null);
+  }}
+>
+  Edit Question
+</button>
+
+<button
+  className="w-full px-4 py-2 text-left text-red-600 hover:bg-red-50"
+  onClick={() =>
+    handleDeleteQuestion(question.id)
+  }
+>
+  Delete Question
+</button>
+  </>
+) : (
+  <>
+    <button className="w-full px-4 py-2 text-left hover:bg-gray-100" onClick={() => {
+    setEditingQuestion(question.id);
+    setEditedQuestion(question.question);
+    setOpenQuestionMenu(null);
+  }}>
+      Edit Question
+    </button>
+
+    <button className="w-full px-4 py-2 text-left text-red-600 hover:bg-red-50" onClick={() => handleDeleteQuestion(question.id)}>
+      Delete Question
+    </button>
+  </>
+)}
+
+</div>
+
+)}
+
+</div>
+)}
+</div>
+
+</div>
+
+{editingQuestion === question.id ? (
+
+<div className="space-y-3">
+
+<textarea
+value={editedQuestion}
+onChange={(e) =>
+  setEditedQuestion(e.target.value)
+}
+rows={3}
+className="w-full rounded-lg border border-gray-300 p-3"
+/>
+
+<div className="flex justify-end gap-2">
+
+<Button
+variant="outline"
+onClick={() => {
+  setEditingQuestion(null);
+  setEditedQuestion("");
+}}
+>
+Cancel
+</Button>
+
+<Button
+onClick={() =>
+  handleQuestionEdit(question.id)
+}
+disabled={savingQuestion}
+>
+{savingQuestion
+  ? "Saving..."
+  : "Save"}
+</Button>
+
+</div>
+
+</div>
+
+) : (
+<>
+<p className="font-semibold text-gray-900">
+  {question.question}
+</p>
+{replyingTo === question.id ? (
+
+<div className="mt-4 space-y-3">
+
+<textarea
+value={replyText}
+onChange={(e) => setReplyText(e.target.value)}
+rows={4}
+className="w-full rounded-lg border border-gray-300 p-3"
+/>
+
+<div className="flex justify-end gap-2">
+
+<Button
+variant="outline"
+onClick={() => {
+setReplyingTo(null);
+setReplyText("");
+}}
+>
+Cancel
+</Button>
+
+<Button
+onClick={() =>
+  handleReplySave(question.id)
+}
+disabled={savingReply}
+>
+{savingReply
+  ? "Saving..."
+  : "Save Reply"}
+</Button>
+
+</div>
+
+</div>
+
+) : (
+
+<div className="mt-4 rounded-lg bg-green-50 border border-green-200 p-4">
+
+{question.answer ? (
+
+<p className="text-sm text-gray-700">
+{question.answer}
+</p>
+
+) : (
+
+<span className="text-orange-600 font-medium">
+Waiting for instructor reply...
+</span>
+
+)}
+
+</div>
+)}
+</>
+)}
+</div>
+  );
+})
+)}
+      <div className="mt-8 rounded-xl border bg-white p-5 shadow-sm">
+
+<h4 className="text-lg font-semibold mb-4">
+Ask a Question
+</h4>
                 <form onSubmit={handleQuestionSubmit} className="mt-4 space-y-3">
                   <textarea
                     rows={3}
@@ -751,31 +1107,13 @@ onClick={async () => {
                     placeholder="Type your question about this lesson..."
                     className="w-full rounded-xl border border-gray-300 px-4 py-3 focus:border-red-500 focus:ring-4 focus:ring-red-100 outline-none"
                   />
-
-                  {questionError && <p className="text-sm text-red-600">{questionError}</p>}
-
                   <div className="flex justify-end">
                     <Button type="submit" className="w-full sm:w-auto" disabled={isSubmittingQuestion}>
                       {isSubmittingQuestion ? 'Posting...' : 'Ask Question'}
                     </Button>
                   </div>
                 </form>
-
-                <div className="mt-6 space-y-4">
-                  {questions.length === 0 ? (
-                    <div className="rounded-xl border border-dashed p-5 text-sm text-gray-500">
-                      No questions yet for this lesson.
-                    </div>
-                  ) : (
-                    questions.map((question) => (
-                      <div key={question.id} className="rounded-xl border bg-gray-50 p-4">
-                        <p className="font-semibold text-gray-900">Q: {question.question}</p>
-                        <p className="mt-2 text-sm text-gray-700">
-                          {question.answer ? `A: ${question.answer}` : 'A: Waiting for instructor reply.'}
-                        </p>
-                      </div>
-                    ))
-                  )}
+                </div>
                 </div>
               </div>
             </div>
@@ -831,21 +1169,11 @@ onClick={() => {
                       )}
                     </div>
 
-                    <div>
+<div className="flex-1">
 
                       <h3 className="font-semibold">
                         Lesson {index + 1}
                       </h3>
-
-                      <p
-                        className={`text-sm ${
-                          currentLesson?.id === lesson.id
-                            ? "text-white/80"
-                            : "text-gray-500"
-                        }`}
-                      >
-                        {lesson.title}
-                      </p>
 
                     </div>
 
@@ -879,8 +1207,7 @@ setQuizStage("prep");
   </div>
 </button>
 {/* Certificate Section */}
-{!quizRunning && lessons.length > 0 && quizResult?.passed ||
-course.quizPassed ? (
+{!quizRunning && lessons.length > 0 && (quizResult?.passed || course.quizPassed) ? (
   <button
     onClick={() => navigate(`/certificate/${courseId}`)}
     className="w-full text-left p-5 transition border-t hover:bg-gray-50"

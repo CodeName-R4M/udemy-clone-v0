@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Search, Menu, X, ShoppingCart } from "lucide-react";
 import { useCart } from "../contexts/Cartcontext";
 import { useAuth } from "../contexts/AuthContext";
+import Profile from "../pages/profile";
 
 const Navbar = () => {
   const { user, logout } = useAuth();
@@ -87,9 +88,12 @@ const Navbar = () => {
               >
                 My Learning
               </Link>
-              <div className="w-10 h-10 rounded-full bg-primary-blue text-white flex items-center justify-center font-bold shadow">
-                {user.name.charAt(0).toUpperCase()}
-              </div>
+<button
+  onClick={() => navigate("/profile")}
+  className="w-10 h-10 rounded-full bg-primary-blue text-white flex items-center justify-center font-bold shadow hover:scale-105 transition"
+>
+  {user.name.charAt(0).toUpperCase()}
+</button>
               <button
                 onClick={handleLogout}
                 className="px-5 py-2 rounded-lg border border-red-500 text-red-600 hover:bg-red-500 hover:text-white transition"
@@ -194,9 +198,15 @@ const Navbar = () => {
                 My Learning
               </Link>
               <div className="flex items-center gap-3 py-2">
-                <div className="w-10 h-10 rounded-full bg-primary-blue text-white flex items-center justify-center font-bold shadow">
-                  {user.name.charAt(0).toUpperCase()}
-                </div>
+<button
+  onClick={() => {
+    navigate("/profile");
+    setMobileMenuOpen(false);
+  }}
+  className="w-10 h-10 rounded-full bg-primary-blue text-white flex items-center justify-center font-bold shadow hover:scale-105 transition"
+>
+  {user.name.charAt(0).toUpperCase()}
+</button>
                 <div>
                   <p className="font-semibold text-gray-800">{user.name}</p>
                   <p className="text-xs text-gray-500 capitalize">{user.role}</p>
