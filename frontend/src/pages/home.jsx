@@ -8,13 +8,16 @@ import {
   BriefcaseBusiness,
   BadgeCheck,
 } from "lucide-react";
-
+import { useNavigate } from "react-router-dom";
 
 const Home = () => {
   const [enrolledIds, setEnrolledIds] = useState([]);
+const [search, setSearch] = useState("");
+
+  const navigate = useNavigate();
 
 useEffect(() => {
-  apiClient.getCourses().then((data) => setCourses(data.slice(0, 8)));
+  apiClient.getCourses().then((data) => setCourses(data));
 
   if (localStorage.getItem("token")) {
     apiClient.getMyEnrolledCourses().then((courses) => {
@@ -24,9 +27,15 @@ useEffect(() => {
 }, []);
   const [courses, setCourses] = useState([]);
 
-  useEffect(() => {
-    apiClient.getCourses().then((data) => setCourses(data.slice(0, 8)));
-  }, []);
+const filteredCourses = courses.filter((course) => {
+  const q = search.toLowerCase();
+
+  return (
+    course.title.toLowerCase().includes(q) ||
+    (course.description ?? "").toLowerCase().includes(q)
+  );
+});
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -47,12 +56,14 @@ useEffect(() => {
               at your own pace and achieve your career goals with ADS Learning Hub.
             </p>
 
-            <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3 sm:gap-4">
-              <Button className="w-full sm:w-auto">Browse Courses</Button>
-              <Button variant="outline" className="w-full sm:w-auto">
-                Become Instructor
-              </Button>
-            </div>
+<div className="mt-6 sm:mt-8">
+  <Button
+    className="w-full sm:w-auto"
+    onClick={() => navigate("/courses")}
+  >
+    Browse Courses
+  </Button>
+</div>
 
             <div className="grid grid-cols-3 gap-3 sm:gap-5 mt-8 sm:mt-12">
               <div className="bg-white/10 backdrop-blur rounded-xl p-4 sm:p-5 text-center">
@@ -82,28 +93,13 @@ useEffect(() => {
                 className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
                 size={20}
               />
-              <input
-                placeholder="Search for anything..."
-                className="w-full border rounded-full pl-11 pr-5 py-3 sm:py-4 text-black outline-none focus:ring-2 focus:ring-primary-blue focus:border-primary-blue"
-              />
-            </div>
-
-            <div className="mt-6 sm:mt-8 flex flex-wrap gap-2 sm:gap-3">
-              {[
-                "Web Development",
-                "Cyber Security",
-                "Python",
-                "React",
-                "Java",
-                "Data Science",
-              ].map((cat) => (
-                <button
-                  key={cat}
-                  className="px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-primary-blue text-primary-blue hover:bg-primary-blue hover:text-white transition text-sm"
-                >
-                  {cat}
-                </button>
-              ))}
+<input
+  type="text"
+  placeholder="Search for anything..."
+  value={search}
+  onChange={(e) => setSearch(e.target.value)}
+  className="w-full border rounded-full pl-11 pr-5 py-3 sm:py-4 text-black outline-none focus:ring-2 focus:ring-primary-blue focus:border-primary-blue"
+/>
             </div>
           </div>
         </div>
@@ -135,7 +131,7 @@ useEffect(() => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 sm:gap-8">
-          {courses.map((course) => (
+          {filteredCourses.map((course) => (
             <CourseCard
     key={course.id}
     course={course}
